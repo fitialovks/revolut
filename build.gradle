@@ -1,0 +1,49 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group 'ru.halcraes.revolut'
+version '1.0-SNAPSHOT'
+
+sourceCompatibility = 1.11
+
+application {
+    mainClassName = 'ru.halcraes.revolut.Main'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // Utilities
+    implementation group: 'net.jcip', name: 'jcip-annotations', version: '1.0'
+    implementation group: 'com.google.guava', name: 'guava', version: '28.0-jre'
+
+    // logging
+    implementation group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.3'
+
+    // WEB server framework Spark
+    implementation group: 'com.sparkjava', name: 'spark-core', version: '2.8.0'
+
+    // JSON serialization
+    implementation group: 'com.fasterxml.jackson.core', name: 'jackson-databind', version: '2.9.9'
+    implementation group: 'com.fasterxml.jackson.datatype', name: 'jackson-datatype-jdk8', version: '2.9.9'
+    implementation group: 'com.fasterxml.jackson.datatype', name: 'jackson-datatype-jsr310', version: '2.9.9'
+
+    // In-memory SQL database H2
+    implementation group: 'com.h2database', name: 'h2', version: '1.4.199'
+    // Schema migration for SQL databases
+    implementation group: 'org.liquibase', name: 'liquibase-core', version: '3.8.0'
+
+
+    // Lombok code generator
+    compileOnly 'org.projectlombok:lombok:1.18.8'
+    annotationProcessor 'org.projectlombok:lombok:1.18.8'
+
+
+    testImplementation group: 'junit', name: 'junit', version: '4.12'
+    // For testing the REST API
+    testImplementation group: 'com.squareup.okhttp3', name: 'okhttp', version: '4.1.0'
+}

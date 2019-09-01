@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+    <changeSet id="1" author="fks">
+        <sql><![CDATA[
+            create table account
+            (
+                id          bigint auto_increment (1000) not null,
+                description text,
+                money       decimal                      not null,
+                primary key (id),
+            );
+            ]]></sql>
+    </changeSet>
+    <changeSet id="2" author="fks">
+        <sql><![CDATA[
+            create table transaction
+            (
+                id       binary(16) not null,
+                from_acc bigint,
+                to_acc   bigint,
+                money    decimal    not null,
+                time     timestamp default current_timestamp(),
+                primary key (id),
+                foreign key (from_acc) references account (id),
+                foreign key (to_acc) references account (id),
+            );
+
+            -- Indexes for displaying transaction history of a certain account
+            create index idx_transaction_from_acc on transaction (from_acc);
+            create index idx_transaction_to_acc on transaction (to_acc);
+            ]]></sql>
+    </changeSet>
+    <changeSet id="3" author="fks">
+        <sql><![CDATA[
+            insert into account (id, description, money)
+            values (1, 'John', 1000.00),
+                   (2, 'Mary', 2000.00);
+
+            insert into transaction (id, from_acc, to_acc, money)
+            values (X'6459A8DF6A4F4F9CBF8405EA56C7AA5D', null, 1, 100.00),
+                   (X'56CAC3A673B54616B3416EFF6A6DFCBC', 1, 2, 50.00),
+                   (X'16B4BD170BF347178DD93E119DA053E2', 1, null, 30.00),
+                   (X'697A94AB3F8348A59A5663C85727EF93', 2, 1, 70.00);
+            ]]></sql>
+    </changeSet>
+</databaseChangeLog>
