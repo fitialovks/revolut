@@ -5,9 +5,11 @@ import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
+import org.eclipse.jetty.http.HttpStatus;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import ru.halcraes.revolut.db.AccountId;
 import ru.halcraes.revolut.db.AccountService;
 import ru.halcraes.revolut.db.Database;
 import ru.halcraes.revolut.db.TransactionId;
@@ -50,7 +52,7 @@ public class RestApiTest {
 
     @Test
     public void createAccount() throws IOException {
-        var response = postJson("account", "{\"description\": \"test\"}");
+        var response = postJson("account", "{\"description\": \"test\"}", HttpStatus.CREATED_201);
         var result = objectMapper.readValue(response, AccountResponse.class);
         assertEquals("test", result.getDescription());
         assertEquals(BigDecimal.ZERO, result.getBalance());
@@ -59,6 +61,22 @@ public class RestApiTest {
         var account = accountService.getAccount(result.getId());
         assertEquals("test", account.getDescription());
         assertEquals(BigDecimal.ZERO, account.getBalance());
+    }
+
+    @Test
+    public void updateAccount() throws IOException {
+        var response = sendJson("PUT", "account/1", "{\"description\": \"test\"}", HttpStatus.OK_200);
+        assertEquals("", response);
+        var account = accountService.getAccount(new AccountId(1));
+        assertEquals("test", account.getDescription());
+    }
+
+    @Test
+    public void updateAccountNotFound() throws IOException {
+        var response = sendJson("PUT", "account/666", "{\"description\": \"test\"}", HttpStatus.NOT_FOUND_404);
+        var result = objectMapper.readValue(response, ErrorResponse.class);
+        assertNotNull(result);
+        assertNotNull(result.getMessage());
     }
 
     @Test
@@ -75,7 +93,7 @@ public class RestApiTest {
 
     @Test
     public void generateTransactionId() throws IOException {
-        String notReallyJson = postJson("transaction/id", "");
+        String notReallyJson = postJson("transaction/id", "", HttpStatus.OK_200);
         assertNotNull(UUID.fromString(notReallyJson));
     }
 
@@ -89,7 +107,7 @@ public class RestApiTest {
                 + "\"to\": " + account.serialize() + ","
                 + "\"amount\": 123.45"
                 + "}";
-        var response = postJson("transaction", request);
+        var response = postJson("transaction", request, HttpStatus.CREATED_201);
         var result = objectMapper.readValue(response, CreateTransactionResponse.class);
         assertEquals(tid, result.getId());
         assertEquals(new BigDecimal("123.45"), result.getAmount());
@@ -109,7 +127,7 @@ public class RestApiTest {
                 + "\"to\": null,"
                 + "\"amount\": 123.45"
                 + "}";
-        var response = postJson("transaction", request);
+        var response = postJson("transaction", request, HttpStatus.CREATED_201);
         var result = objectMapper.readValue(response, CreateTransactionResponse.class);
         assertEquals(tid, result.getId());
         assertEquals(new BigDecimal("123.45"), result.getAmount());
@@ -130,7 +148,7 @@ public class RestApiTest {
                 + "\"to\": " + accountTo.serialize() + ","
                 + "\"amount\": 123.45"
                 + "}";
-        var response = postJson("transaction", request);
+        var response = postJson("transaction", request, HttpStatus.CREATED_201);
         var result = objectMapper.readValue(response, CreateTransactionResponse.class);
         assertEquals(tid, result.getId());
         assertEquals(new BigDecimal("123.45"), result.getAmount());
@@ -139,13 +157,52 @@ public class RestApiTest {
         assertNotNull(result.getTimestamp());
     }
 
-    private static String postJson(String path, String json) throws IOException {
+    @Test
+    public void sendInternalNotEnoughMoney() throws IOException {
+        var accountFrom = accountService.createAccount("test");
+        accountService.moveMoney(null, accountFrom, TransactionId.create(), new BigDecimal("100"));
+        var accountTo = accountService.createAccount("test");
+        TransactionId tid = TransactionId.create();
+        String request = "{"
+                + "\"id\": \"" + tid.asString() + "\","
+                + "\"from\": " + accountFrom.serialize() + ","
+                + "\"to\": " + accountTo.serialize() + ","
+                + "\"amount\": 123.45"
+                + "}";
+        var response = postJson("transaction", request, HttpStatus.CONFLICT_409);
+        var result = objectMapper.readValue(response, ErrorResponse.class);
+        assertNotNull(result);
+        assertNotNull(result.getMessage());
+    }
+
+    @Test
+    public void sendInternalNotFound() throws IOException {
+        var accountFrom = accountService.createAccount("test");
+        accountService.moveMoney(null, accountFrom, TransactionId.create(), new BigDecimal("1000"));
+        TransactionId tid = TransactionId.create();
+        String request = "{"
+                + "\"id\": \"" + tid.asString() + "\","
+                + "\"from\": " + accountFrom.serialize() + ","
+                + "\"to\": 666,"
+                + "\"amount\": 123.45"
+                + "}";
+        var response = postJson("transaction", request, HttpStatus.NOT_FOUND_404);
+        var result = objectMapper.readValue(response, ErrorResponse.class);
+        assertNotNull(result);
+        assertNotNull(result.getMessage());
+    }
+
+    private static String postJson(String path, String json, int expectedStatus) throws IOException {
+        return sendJson("POST", path, json, expectedStatus);
+    }
+
+    private static String sendJson(String method, String path, String json, int expectedStatus) throws IOException {
         var request = new Request.Builder()
                 .url("http://localhost:" + port() + "/api/v1/" + path)
-                .post(RequestBody.create(json, MediaType.get("application/json")))
+                .method(method, RequestBody.create(json, MediaType.get("application/json")))
                 .build();
         var response = httpClient.newCall(request).execute();
-        assertEquals(200, response.code());
+        assertEquals(expectedStatus, response.code());
         var body = response.body();
         assertNotNull(body);
         return body.string();

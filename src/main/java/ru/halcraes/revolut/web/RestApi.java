@@ -27,40 +27,42 @@ public class RestApi {
     public void configure() {
         JsonTransformer transformer = new JsonTransformer(objectMapper);
         get("/api/v1/account/:id", "application/json", this::getAccount, transformer);
+        put("/api/v1/account/:id", "application/json", this::updateAccount);
         post("/api/v1/account", "application/json", this::createAccount, transformer);
         get("/api/v1/transaction", "application/json", this::getTransactions, transformer);
         post("/api/v1/transaction", "application/json", this::send, transformer);
         post("/api/v1/transaction/id", "text/plain", this::generateTransactionId, Objects::toString);
 
         exception(AccountNotFoundException.class, (exception, request, response) -> {
-            var error = Error.builder()
+            var error = ErrorResponse.builder()
                     .message(String.format("Account %s not found.", exception.getAccountId()))
                     .build();
-            sendError(HttpStatus.BAD_REQUEST_400, error, response);
+            sendError(HttpStatus.NOT_FOUND_404, error, response);
         });
         exception(NotEnoughMoneyException.class, (exception, request, response) -> {
-            var error = Error.builder()
+            var error = ErrorResponse.builder()
                     .message(String.format("Account %s does not have enough funds.", exception.getAccount()))
                     .build();
-            sendError(HttpStatus.BAD_REQUEST_400, error, response);
+            // 409 is better that 400 or 200 as the request was correct, but there was still an error.
+            sendError(HttpStatus.CONFLICT_409, error, response);
         });
 
         // Input validation can be drastically improved, but requires a lot of code with custom exceptions.
         exception(IllegalArgumentException.class, (exception, request, response) -> {
-            var error = Error.builder()
+            var error = ErrorResponse.builder()
                     .message(exception.getMessage())
                     .build();
             sendError(HttpStatus.BAD_REQUEST_400, error, response);
         });
         exception(NullPointerException.class, (exception, request, response) -> {
-            var error = Error.builder()
+            var error = ErrorResponse.builder()
                     .message(exception.getMessage())
                     .build();
             sendError(HttpStatus.BAD_REQUEST_400, error, response);
         });
     }
 
-    private void sendError(int status, Error error, Response response) {
+    private void sendError(int status, ErrorResponse error, Response response) {
         response.status(status);
         response.type("application/json");
         try {
@@ -77,7 +79,15 @@ public class RestApi {
         result.setId(account);
         result.setBalance(BigDecimal.ZERO);
         result.setDescription(car.getDescription());
+        response.status(HttpStatus.CREATED_201);
         return result;
+    }
+
+    private Object updateAccount(Request request, Response response) throws IOException {
+        CreateAccountRequest car = objectMapper.readValue(request.body(), CreateAccountRequest.class);
+        AccountId account = AccountId.parse(request.params("id"));
+        accountService.updateAccount(account, car.getDescription());
+        return "";
     }
 
     private AccountResponse getAccount(Request request, Response response) {
@@ -123,6 +133,7 @@ public class RestApi {
         result.setFrom(t.getFromAccount());
         result.setTo(t.getToAccount());
         result.setTimestamp(t.getTimestamp());
+        response.status(HttpStatus.CREATED_201);
         return result;
     }
 

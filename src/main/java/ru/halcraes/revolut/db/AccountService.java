@@ -25,7 +25,7 @@ public class AccountService {
 
     public AccountId createAccount(@Nullable String description) {
         try (var conn = dataSource.getConnection();
-             var statement = conn.prepareStatement("insert into account (description, money) values ( ?, 0 )", Statement.RETURN_GENERATED_KEYS);
+             var statement = conn.prepareStatement("insert into account (description, money) values ( ?, 0 )", Statement.RETURN_GENERATED_KEYS)
         ) {
             statement.setString(1, description);
             statement.execute();
@@ -35,6 +35,22 @@ public class AccountService {
             long id = statement.getGeneratedKeys().getLong("id");
             conn.commit();
             return new AccountId(id);
+        } catch (SQLException e) {
+            throw new InternalException(e);
+        }
+    }
+
+    public void updateAccount(AccountId accountId, @Nullable String description) {
+        try (var conn = dataSource.getConnection();
+             var statement = conn.prepareStatement("update account set description = ? where id = ?")
+        ) {
+            statement.setString(1, description);
+            statement.setLong(2, accountId.getValue());
+            statement.execute();
+            if (statement.getUpdateCount() != 1) {
+                throw new AccountNotFoundException(accountId);
+            }
+            conn.commit();
         } catch (SQLException e) {
             throw new InternalException(e);
         }
@@ -80,10 +96,10 @@ public class AccountService {
                         case ErrorCode.REFERENTIAL_INTEGRITY_VIOLATED_PARENT_MISSING_1:
                             // A bit fragile, but there's a test.
                             if (e.getMessage().contains("FOREIGN KEY(FROM_ACC)")) {
-                                throw new AccountNotFoundException(fromAccount);
+                                throw new AccountNotFoundException(Objects.requireNonNull(fromAccount));
                             }
                             if (e.getMessage().contains("FOREIGN KEY(TO_ACC)")) {
-                                throw new AccountNotFoundException(toAccount);
+                                throw new AccountNotFoundException(Objects.requireNonNull(toAccount));
                             }
                             throw new InternalException("Failed to recognize the violated constraint.");
                         default:
