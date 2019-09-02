@@ -32,10 +32,10 @@ builds a REST API on top of `AccountService` using Spark.
 ## Implementation notes
 
 `AccountService` only works with its own transaction id format and does not accept references to
-any external systems. This is done to guarantee good performance. Integrations with
+any external systems. This is done to guarantee even performance. Integrations with
 external services are expected to store both internal transaction id and external reference
-in their own databases. To avoid a call to `/api/v1/transaction/id` a consumer can still generate
-its own UUID.
+in their own databases. To avoid a call to `/api/v1/transaction/id` (or any other two step contract)
+a consumer can still generate its own UUID.
 
 In case an API consumer is unsure if a transaction was complete it can use its stored
 transaction id and details to safely repeat the transaction. If all details match
